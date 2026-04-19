@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduBooks Malaysia - Admin & Student Portal</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; 
+        }
+        .book-card:hover { 
+            transform: translateY(-4px); 
+            transition: all 0.3s ease; 
+        }
+        .cart-drawer { 
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .hidden-drawer { 
+            transform: translateX(100%); 
+        }
+        
+        .book-cover {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .book-cover::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 6px;
+            background: linear-gradient(to right, rgba(0,0,0,0.2), transparent);
+            z-index: 2;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .toast-notification {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Custom Notification System -->
+    <div id="notification-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3"></div>
+
+    <nav class="bg-white border-b sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                    <div class="bg-blue-600 p-2 rounded-lg">
+                        <i data-lucide="book-open" class="text-white w-6 h-6"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-900 tracking-tight">EduBooks<span class="text-blue-600">MY</span></span>
+                </div>
+
+                <div id="student-nav-links" class="hidden md:flex space-x-8">
+                    <button onclick="filterBooks('All')" class="nav-filter text-blue-600 font-bold">All Books</button>
+                    <button onclick="filterBooks('SPM')" class="nav-filter text-gray-600 hover:text-blue-600 font-medium transition-colors">SPM</button>
+                    <button onclick="filterBooks('STPM')" class="nav-filter text-gray-600 hover:text-blue-600 font-medium transition-colors">STPM</button>
+                    <button onclick="filterBooks('MUET')" class="nav-filter text-gray-600 hover:text-blue-600 font-medium transition-colors">MUET</button>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button id="view-toggle" onclick="toggleAdminView()" class="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 text-sm font-semibold transition-all hover:bg-gray-50 active:scale-95 bg-white shadow-sm">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                        <span id="view-label">Admin Console</span>
+                    </button>
+
+                    <button id="cart-btn" onclick="toggleCart()" class="relative p-2.5 text-gray-600 hover:bg-gray-100 rounded-full transition-all active:scale-90">
+                        <i data-lucide="shopping-cart"></i>
+                        <span id="cart-count" class="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden border-2 border-white">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="student-view" class="flex-grow">
+        <header class="bg-blue-600 py-16 px-4 text-center relative overflow-hidden">
+            <div class="absolute inset-0 opacity-10">
+                <svg width="100%" height="100%"><rect width="100%" height="100%" fill="url(#grid)"/><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="1"/></pattern></defs></svg>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white mb-4 relative z-10">Ace Your Exams</h1>
+            <p class="text-blue-100 text-lg max-w-2xl mx-auto relative z-10">Premium Malaysian revision guides curated for your academic journey.</p>
+        </header>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div id="book-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"></div>
+        </main>
+    </div>
+
+    <div id="admin-view" class="hidden flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-900">Admin Console</h2>
+                <p class="text-gray-500 mt-1">Real-time inventory and business performance tracking.</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="openAddBookModal()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> New Listing
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4">
+                <div class="bg-green-100 p-3 rounded-xl text-green-600"><i data-lucide="trending-up"></i></div>
+                <div><p class="text-sm text-gray-500 font-medium uppercase tracking-wider">Total Sales</p><h3 id="stat-sales" class="text-2xl font-bold text-gray-900">RM 0.00</h3></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4">
+                <div class="bg-blue-100 p-3 rounded-xl text-blue-600"><i data-lucide="package"></i></div>
+                <div><p class="text-sm text-gray-500 font-medium uppercase tracking-wider">Units Sold</p><h3 id="stat-units" class="text-2xl font-bold text-gray-900">0</h3></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border shadow-sm flex items-center gap-4">
+                <div class="bg-purple-100 p-3 rounded-xl text-purple-600"><i data-lucide="users"></i></div>
+                <div><p class="text-sm text-gray-500 font-medium uppercase tracking-wider">Total Customers</p><h3 id="stat-customers" class="text-2xl font-bold text-gray-900">0</h3></div>
+            </div>
+        </div>
+
+        <div class="flex gap-6 border-b mb-8 overflow-x-auto whitespace-nowrap">
+            <button onclick="switchAdminTab('inventory')" id="tab-inventory" class="pb-4 px-2 font-bold text-blue-600 border-b-2 border-blue-600 transition-all">Inventory</button>
+            <button onclick="switchAdminTab('orders')" id="tab-orders" class="pb-4 px-2 font-bold text-gray-500 hover:text-blue-600 transition-all">Recent Orders</button>
+            <button onclick="switchAdminTab('customers')" id="tab-customers" class="pb-4 px-2 font-bold text-gray-500 hover:text-blue-600 transition-all">Customer Base</button>
+        </div>
+
+        <div id="admin-content" class="bg-white rounded-2xl shadow-sm border overflow-hidden min-h-[400px]"></div>
+    </div>
+
+    <!-- Modals & Overlays -->
+    <div id="cart-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden transition-opacity" onclick="toggleCart()"></div>
+    
+    <div id="cart-drawer" class="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-2xl cart-drawer hidden-drawer flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+            <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="shopping-bag" class="text-blue-600"></i> Your Shopping Bag</h2>
+            <button onclick="toggleCart()" class="p-2 hover:bg-gray-200 rounded-full transition-colors"><i data-lucide="x"></i></button>
+        </div>
+        
+        <div id="cart-content-area" class="flex-grow overflow-auto p-6">
+            <div id="cart-items" class="space-y-6"></div>
+            
+            <div id="checkout-form" class="hidden mt-4 space-y-5 animate-in slide-in-from-right">
+                <div class="flex items-center gap-2 mb-6">
+                    <button onclick="showCartItemsOnly()" class="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i> Back to items
+                    </button>
+                </div>
+                <h3 class="font-bold text-lg text-gray-900">Delivery Information</h3>
+                <div class="space-y-3">
+                    <input id="buy-name" class="w-full border border-gray-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Receiver's Full Name">
+                    <input id="buy-email" type="email" class="w-full border border-gray-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Email Address">
+                    <input id="buy-phone" type="tel" class="w-full border border-gray-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Phone Number (e.g., 012-3456789)">
+                    <textarea id="buy-location" class="w-full border border-gray-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" rows="3" placeholder="Full Delivery Address in Malaysia"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 border-t bg-gray-50">
+            <div class="flex justify-between items-center text-xl font-bold mb-6">
+                <span class="text-gray-500 text-sm uppercase tracking-widest font-semibold">Total Amount</span>
+                <span id="cart-total" class="text-blue-600 text-2xl font-black">RM 0.00</span>
+            </div>
+            <button id="main-cart-btn" onclick="proceedToCheckout()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-100 disabled:bg-gray-300 disabled:shadow-none hover:bg-blue-700 transition-all active:scale-[0.98]">
+                Proceed to Checkout
+            </button>
+            <button id="confirm-order-btn" onclick="completePurchase()" class="hidden w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-green-100 hover:bg-green-700 transition-all active:scale-[0.98]">
+                Place Order & Pay
+            </button>
+        </div>
+    </div>
+
+    <!-- Manage Modal -->
+    <div id="add-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-md shadow-2xl transform scale-100 transition-transform">
+            <h3 class="text-2xl font-bold mb-6 text-gray-900">New Book Entry</h3>
+            <div class="space-y-5">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 block mb-2 uppercase tracking-widest">Book Title</label>
+                    <input id="new-title" class="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 block mb-2 uppercase tracking-widest">Price (RM)</label>
+                        <input id="new-price" type="number" step="0.01" class="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 block mb-2 uppercase tracking-widest">Stock Count</label>
+                        <input id="new-stock" type="number" value="10" class="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 block mb-2 uppercase tracking-widest">Category</label>
+                    <select id="new-cat" class="w-full bg-gray-50 border-0 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium appearance-none">
+                        <option>SPM</option><option>STPM</option><option>MUET</option><option>Pre-U</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 block mb-2 uppercase tracking-widest">Cover Color Theme</label>
+                    <div class="flex items-center gap-4">
+                        <input type="color" id="new-color" class="w-16 h-16 border-0 bg-transparent cursor-pointer rounded-xl" value="#3b82f6">
+                        <span class="text-xs text-gray-500 italic">This defines the visual identity of the book on the store.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-4 mt-10">
+                <button onclick="closeAddBookModal()" class="flex-1 text-gray-600 py-4 rounded-xl font-bold hover:bg-gray-100 transition-colors">Cancel</button>
+                <button onclick="addNewBook()" class="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">Create Book</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Confirmation Modal Replacement -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/60 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center">
+            <div id="confirm-icon" class="mb-4 mx-auto w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <h3 id="confirm-title" class="text-xl font-bold text-gray-900 mb-2">Are you sure?</h3>
+            <p id="confirm-msg" class="text-gray-500 mb-8">This action cannot be undone. Proceed with caution.</p>
+            <div class="flex gap-3">
+                <button id="confirm-cancel" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">No, Cancel</button>
+                <button id="confirm-ok" class="flex-1 py-3 bg-red-600 rounded-xl font-bold text-white shadow-lg">Yes, Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t py-10 px-4 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-2">
+                <div class="bg-gray-200 p-1.5 rounded-lg">
+                    <i data-lucide="book-open" class="text-gray-600 w-4 h-4"></i>
+                </div>
+                <span class="text-lg font-bold text-gray-800">EduBooks<span class="text-blue-600">MY</span></span>
+            </div>
+            <p class="text-gray-400 text-sm">© 2024 EduBooks Malaysia. All student materials are sourced from verified publishers.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- Data Store ---
+        let books = [
+            { id: 1, title: "Biology Mastery Form 5", category: "SPM", price: 35.00, stock: 12, color: "#10b981" },
+            { id: 2, title: "Advanced Chemistry Vol 1", category: "STPM", price: 45.90, stock: 4, color: "#f59e0b" },
+            { id: 3, title: "Ace MUET: Practice Pack", category: "MUET", price: 28.50, stock: 25, color: "#6366f1" },
+            { id: 4, title: "Modern Maths Essentials", category: "SPM", price: 32.00, stock: 18, color: "#ef4444" },
+            { id: 5, title: "Microeconomics Theory", category: "STPM", price: 42.00, stock: 8, color: "#8b5cf6" }
+        ];
+        let cart = [];
+        let orders = [];
+        let currentView = 'student';
+        let currentAdminTab = 'inventory';
+
+        // --- Core Utilities ---
+        function refreshIcons() { 
+            if (window.lucide) window.lucide.createIcons(); 
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            const color = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+            const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info';
+            
+            toast.className = `toast-notification ${color} text-white px-6 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 font-semibold min-w-[300px] pointer-events-auto cursor-pointer`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i> <span>${message}</span>`;
+            toast.onclick = () => toast.remove();
+            
+            container.appendChild(toast);
+            refreshIcons();
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-full', 'transition-all', 'duration-500');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function customConfirm(title, msg, onOk) {
+            const modal = document.getElementById('confirm-modal');
+            const t = document.getElementById('confirm-title');
+            const m = document.getElementById('confirm-msg');
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+
+            t.innerText = title;
+            m.innerText = msg;
+            modal.classList.remove('hidden');
+
+            const cleanup = () => modal.classList.add('hidden');
+
+            okBtn.onclick = () => { onOk(); cleanup(); };
+            cancelBtn.onclick = cleanup;
+        }
+
+        function getBookCoverHTML(book, size = 'large') {
+            const h = size === 'large' ? 'h-52' : 'h-16 w-12';
+            const fontSize = size === 'large' ? 'text-sm' : 'text-[8px]';
+            const iconSize = size === 'large' ? 'w-10 h-10' : 'w-4 h-4';
+            
+            return `
+                <div class="${h} book-cover flex flex-col items-center justify-center p-4 text-center group" style="background-color: ${book.color || '#3b82f6'}">
+                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>
+                    <div class="relative z-10 flex flex-col items-center">
+                        <i data-lucide="award" class="text-white/40 mb-3 ${iconSize}"></i>
+                        <p class="text-white font-black leading-tight uppercase ${fontSize} tracking-tighter drop-shadow-md px-1">${book.title}</p>
+                        ${size === 'large' ? `<span class="mt-2 inline-block px-2 py-0.5 border border-white/30 rounded text-[9px] text-white/70 uppercase tracking-widest font-bold">${book.category}</span>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        // --- Business Logic: Storefront ---
+        function renderBooks(data) {
+            const grid = document.getElementById('book-grid');
+            if (!grid) return;
+            
+            grid.innerHTML = data.map(b => `
+                <div class="bg-white p-5 rounded-2xl border border-gray-100 book-card flex flex-col shadow-sm">
+                    <div class="mb-5 transition-transform hover:scale-[1.02] cursor-pointer" onclick="addToCart(${b.id})">${getBookCoverHTML(b, 'large')}</div>
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-gray-900 line-clamp-1">${b.title}</h3>
+                            <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md font-bold uppercase tracking-wider">${b.category}</span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xs font-bold text-blue-600 uppercase">RM</span>
+                            <span class="text-2xl font-black text-gray-900">${b.price.toFixed(2)}</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-3">
+                            <div class="h-1.5 flex-grow bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full ${b.stock > 10 ? 'bg-green-500' : b.stock > 0 ? 'bg-orange-500' : 'bg-gray-300'}" style="width: ${Math.min(100, (b.stock/20)*100)}%"></div>
+                            </div>
+                            <p class="text-[11px] font-bold uppercase tracking-tighter ${b.stock > 0 ? 'text-gray-400' : 'text-red-500'}">
+                                ${b.stock > 0 ? b.stock + ' left' : 'Sold Out'}
+                            </p>
+                        </div>
+                    </div>
+                    <button onclick="addToCart(${b.id})" ${b.stock <= 0 ? 'disabled' : ''} class="mt-6 w-full bg-gray-900 text-white py-3.5 rounded-xl hover:bg-blue-600 active:scale-[0.98] disabled:bg-gray-100 disabled:text-gray-400 transition-all font-bold flex items-center justify-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add to Bag
+                    </button>
+                </div>`).join('');
+            refreshIcons();
+        }
+
+        function filterBooks(cat) {
+            const filtered = cat === 'All' ? books : books.filter(b => b.category === cat);
+            renderBooks(filtered);
+            document.querySelectorAll('.nav-filter').forEach(btn => {
+                const isActive = btn.innerText.includes(cat) || (cat === 'All' && btn.innerText === 'All Books');
+                btn.className = isActive ? "nav-filter text-blue-600 font-bold" : "nav-filter text-gray-600 font-medium transition-colors hover:text-blue-600";
+            });
+        }
+
+        // --- Business Logic: Admin Console ---
+        function toggleAdminView() {
+            currentView = currentView === 'student' ? 'admin' : 'student';
+            document.getElementById('student-view').classList.toggle('hidden');
+            document.getElementById('admin-view').classList.toggle('hidden');
+            document.getElementById('view-label').innerText = currentView === 'admin' ? 'Exit Admin' : 'Admin Console';
+            if(currentView === 'admin') {
+                updateDashboardStats();
+                renderAdminContent();
+            }
+        }
+
+        function updateDashboardStats() {
+            const totalRev = orders.reduce((s, o) => s + o.total, 0);
+            const totalUnits = orders.reduce((s, o) => s + o.items.length, 0);
+            const totalCust = [...new Set(orders.map(o => o.buyer.email))].length;
+
+            document.getElementById('stat-sales').innerText = `RM ${totalRev.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById('stat-units').innerText = totalUnits;
+            document.getElementById('stat-customers').innerText = totalCust;
+        }
+
+        function switchAdminTab(tab) {
+            currentAdminTab = tab;
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                el.classList.add('text-gray-500');
+            });
+            document.getElementById(`tab-${tab}`).classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+            renderAdminContent();
+        }
+
+        function renderAdminContent() {
+            const container = document.getElementById('admin-content');
+            if (!container) return;
+
+            if (currentAdminTab === 'inventory') {
+                container.innerHTML = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50/80 border-b border-gray-100">
+                                <tr>
+                                    <th class="px-8 py-5 text-xs font-black uppercase tracking-widest text-gray-400">Inventory Item</th>
+                                    <th class="px-8 py-5 text-xs font-black uppercase tracking-widest text-gray-400">Unit Price</th>
+                                    <th class="px-8 py-5 text-xs font-black uppercase tracking-widest text-gray-400 text-center">In Stock</th>
+                                    <th class="px-8 py-5 text-xs font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                ${books.map(b => `
+                                    <tr class="hover:bg-blue-50/30 transition-colors group">
+                                        <td class="px-8 py-5 flex items-center gap-5">
+                                            <div class="flex-shrink-0">${getBookCoverHTML(b, 'small')}</div>
+                                            <div>
+                                                <p class="font-bold text-gray-900">${b.title}</p>
+                                                <p class="text-xs font-bold text-blue-500 uppercase tracking-tighter">${b.category}</p>
+                                            </div>
+                                        </td>
+                                        <td class="px-8 py-5 font-black text-gray-900">RM ${b.price.toFixed(2)}</td>
+                                        <td class="px-8 py-5">
+                                            <div class="flex items-center justify-center gap-4 bg-gray-50 rounded-xl p-1.5 w-max mx-auto border border-gray-100">
+                                                <button onclick="updateStock(${b.id}, -1)" class="w-9 h-9 rounded-lg bg-white border shadow-sm flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all font-bold text-gray-600">-</button>
+                                                <span class="font-black text-lg w-10 text-center ${b.stock < 5 ? 'text-red-500 animate-pulse' : 'text-gray-900'}">${b.stock}</span>
+                                                <button onclick="updateStock(${b.id}, 1)" class="w-9 h-9 rounded-lg bg-white border shadow-sm flex items-center justify-center hover:bg-gray-100 active:scale-90 transition-all font-bold text-gray-600">+</button>
+                                            </div>
+                                        </td>
+                                        <td class="px-8 py-5 text-right">
+                                            <button onclick="deleteBook(${b.id})" class="text-red-400 hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50">
+                                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                            </button>
+                                        </td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            } else if (currentAdminTab === 'orders') {
+                container.innerHTML = orders.length === 0 ? '<div class="flex flex-col items-center justify-center h-full py-20 text-gray-400"><i data-lucide="inbox" class="w-12 h-12 mb-4 opacity-20"></i><p class="font-bold">No orders processed yet</p></div>' : `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Order Ref</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Purchaser</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Cart Contents</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Total Rev</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                ${orders.map(o => `
+                                    <tr class="hover:bg-gray-50/50 transition-colors">
+                                        <td class="px-8 py-5 text-xs font-mono text-gray-400">#${o.id.toString().slice(-6)}</td>
+                                        <td class="px-8 py-5">
+                                            <p class="font-bold text-gray-900">${o.buyer.name}</p>
+                                            <p class="text-[10px] text-gray-400 uppercase font-medium">${o.buyer.phone}</p>
+                                        </td>
+                                        <td class="px-8 py-5">
+                                            <div class="flex flex-wrap gap-2">
+                                                ${o.items.map(i => `<span class="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500">${i.title}</span>`).join('')}
+                                            </div>
+                                        </td>
+                                        <td class="px-8 py-5 font-black text-green-600">RM ${o.total.toFixed(2)}</td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            } else if (currentAdminTab === 'customers') {
+                const uniqueEmails = [...new Set(orders.map(o => o.buyer.email))];
+                const customers = uniqueEmails.map(email => {
+                    const cOrders = orders.filter(o => o.buyer.email === email);
+                    return {
+                        name: cOrders[0].buyer.name,
+                        email,
+                        phone: cOrders[0].buyer.phone,
+                        spent: cOrders.reduce((s, o) => s + o.total, 0),
+                        count: cOrders.length
+                    };
+                });
+                container.innerHTML = customers.length === 0 ? '<div class="flex flex-col items-center justify-center h-full py-20 text-gray-400"><i data-lucide="users" class="w-12 h-12 mb-4 opacity-20"></i><p class="font-bold">No customer records</p></div>' : `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Customer Name</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Frequency</th>
+                                    <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">LTV (Lifetime Value)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                ${customers.map(c => `
+                                    <tr>
+                                        <td class="px-8 py-5">
+                                            <p class="font-bold text-gray-900">${c.name}</p>
+                                            <p class="text-xs text-gray-500">${c.email} • ${c.phone}</p>
+                                        </td>
+                                        <td class="px-8 py-5 text-center font-black text-gray-400">${c.count} orders</td>
+                                        <td class="px-8 py-5 font-black text-blue-600">RM ${c.spent.toFixed(2)}</td>
+                                    </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            }
+            refreshIcons();
+        }
+
+        function updateStock(id, delta) {
+            const book = books.find(b => b.id === id);
+            if (book) {
+                const newStock = Math.max(0, book.stock + delta);
+                if (newStock === book.stock) return;
+                book.stock = newStock;
+                renderAdminContent();
+                renderBooks(books);
+                showToast(`Stock for ${book.title} updated to ${book.stock}`, 'info');
+            }
+        }
+
+        // --- Business Logic: Cart & Checkout ---
+        function toggleCart() {
+            document.getElementById('cart-drawer').classList.toggle('hidden-drawer');
+            document.getElementById('cart-overlay').classList.toggle('hidden');
+        }
+
+        function addToCart(id) {
+            const b = books.find(x => x.id === id);
+            if (b) {
+                if (b.stock <= 0) return showToast("This item is currently out of stock.", "error");
+                cart.push({...b}); 
+                updateCart(); 
+                showToast(`Added "${b.title}" to bag`);
+                if (document.getElementById('cart-drawer').classList.contains('hidden-drawer')) {
+                    toggleCart();
+                }
+            }
+        }
+
+        function updateCart() {
+            const count = document.getElementById('cart-count');
+            count.innerText = cart.length;
+            count.classList.toggle('hidden', cart.length === 0);
+            
+            document.getElementById('cart-items').innerHTML = cart.length === 0 ? 
+                '<div class="flex flex-col items-center py-20 text-gray-400"><i data-lucide="shopping-cart" class="w-12 h-12 mb-4 opacity-10"></i><p class="font-bold text-sm">Your bag is empty</p></div>' : 
+                cart.map((i, idx) => `
+                <div class="flex items-center gap-5 group border-b border-gray-50 pb-5 last:border-0">
+                    <div class="flex-shrink-0">${getBookCoverHTML(i, 'small')}</div>
+                    <div class="flex-grow">
+                        <p class="font-bold text-sm text-gray-800 leading-tight">${i.title}</p>
+                        <p class="text-blue-600 font-black text-xs mt-1 uppercase">RM ${i.price.toFixed(2)}</p>
+                    </div>
+                    <button onclick="removeFromCart(${idx})" class="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>`).join('');
+                
+            const total = cart.reduce((s, i) => s + i.price, 0);
+            document.getElementById('cart-total').innerText = `RM ${total.toFixed(2)}`;
+            document.getElementById('main-cart-btn').disabled = cart.length === 0;
+            refreshIcons();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1); 
+            updateCart();
+            if (cart.length === 0) showCartItemsOnly();
+        }
+
+        function proceedToCheckout() {
+            document.getElementById('checkout-form').classList.remove('hidden');
+            document.getElementById('cart-items').classList.add('hidden');
+            document.getElementById('main-cart-btn').classList.add('hidden');
+            document.getElementById('confirm-order-btn').classList.remove('hidden');
+        }
+
+        function showCartItemsOnly() {
+            document.getElementById('checkout-form').classList.add('hidden');
+            document.getElementById('cart-items').classList.remove('hidden');
+            document.getElementById('main-cart-btn').classList.remove('hidden');
+            document.getElementById('confirm-order-btn').classList.add('hidden');
+        }
+
+        function completePurchase() {
+            const name = document.getElementById('buy-name').value;
+            const email = document.getElementById('buy-email').value;
+            const phone = document.getElementById('buy-phone').value;
+            const location = document.getElementById('buy-location').value;
+            
+            if (!name || !email || !phone || !location) {
+                return showToast("Please fill in all delivery details", "error");
+            }
+
+            const total = cart.reduce((s, i) => s + i.price, 0);
+            orders.push({ 
+                id: Date.now(), 
+                buyer: { name, email, phone, location }, 
+                items: [...cart], 
+                total 
+            });
+            
+            // Deduction and validation
+            cart.forEach(item => { 
+                const b = books.find(x => x.id === item.id); 
+                if (b) b.stock = Math.max(0, b.stock - 1); 
+            });
+            
+            showToast("Success! Your order is being processed.");
+            
+            // Reset Store State
+            cart = []; 
+            updateCart(); 
+            showCartItemsOnly(); 
+            toggleCart(); 
+            renderBooks(books);
+            
+            // Reset Fields
+            document.getElementById('buy-name').value = '';
+            document.getElementById('buy-email').value = '';
+            document.getElementById('buy-phone').value = '';
+            document.getElementById('buy-location').value = '';
+
+            if(currentView === 'admin') {
+                updateDashboardStats();
+                renderAdminContent();
+            }
+        }
+
+        // --- Admin Management ---
+        function openAddBookModal() { document.getElementById('add-modal').classList.remove('hidden'); }
+        function closeAddBookModal() { document.getElementById('add-modal').classList.add('hidden'); }
+        
+        function addNewBook() {
+            const title = document.getElementById('new-title').value;
+            const price = parseFloat(document.getElementById('new-price').value);
+            const stock = parseInt(document.getElementById('new-stock').value) || 0;
+            
+            if (!title || isNaN(price) || price <= 0) {
+                return showToast("Please provide valid book details", "error");
+            }
+            
+            const newBook = { 
+                id: Date.now(), 
+                title, 
+                price, 
+                stock, 
+                category: document.getElementById('new-cat').value, 
+                color: document.getElementById('new-color').value 
+            };
+            
+            books.unshift(newBook);
+            renderAdminContent(); 
+            renderBooks(books); 
+            closeAddBookModal();
+            showToast(`Listed "${title}" successfully`);
+            
+            // Clear inputs
+            document.getElementById('new-title').value = '';
+            document.getElementById('new-price').value = '';
+        }
+
+        function deleteBook(id) { 
+            const b = books.find(x => x.id === id);
+            customConfirm(
+                "Delete Listing?", 
+                `This will remove "${b.title}" from your inventory permanently.`,
+                () => {
+                    books = books.filter(b => b.id !== id); 
+                    renderAdminContent(); 
+                    renderBooks(books); 
+                    showToast("Book listing removed", "error");
+                }
+            );
+        }
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            renderBooks(books);
+            refreshIcons();
+        });
+    </script>
+</body>
+</html>
